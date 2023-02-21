@@ -103,6 +103,8 @@ unsigned char g_uc_di_status_current;
 unsigned char g_uc_do_status_current;
 unsigned char g_uc_do_set_value[4];
 
+pthread_mutex_t mutex;
+
 /* global point, pointing to the defined modbus address */
 /* the global point is ulong_t type convert the ushort buf into ulong */
 
@@ -140,11 +142,20 @@ int main(IN int argc, IN char *argv[])
         /* clear the modbus buffer, this must be done before the init() function */
         /*init */
 
+        // 初始化互斥锁
+        if (pthread_mutex_init(&mutex, NULL) != 0)
+        {
+            // 互斥锁初始化失败
+            LOG_INFO("pthread mutex init!\n");
+            return 1;
+        }
+
         jProInit();
         ReadFileStatus = jReadFileInit();
 
         // 读写IO的线程
         pthread_create(&threadIOReadWrite, NULL, jProcIoReadWrite, NULL);
+
         GpIoStatus = jGPIoInit();
         jSemCreat();
 
@@ -155,7 +166,6 @@ int main(IN int argc, IN char *argv[])
         pthread_create(&threadIORun, NULL, jProcloRun, NULL);
         pthread_create(&threadIOMsv, NULL, jProcIoMsv, NULL);
         // pthread_create(&threadIOMsvOut, NULL, jProcIoMsvOut, NULL);
-
         // create com thread
         for (i = Start_Port; i < End_Port; i++)
         {
@@ -166,7 +176,7 @@ int main(IN int argc, IN char *argv[])
                 // 运行列反馈
                 ComRun_Status = ComRun_Status | (ushort_t)(pow(2, i));
                 pthread_create(&aThreadSerialCom[i], NULL, jProcComServer, &m_STCommPara[i]);
-                // jPselect(100);
+                // jPselect(10);
             }
         }
         // create modbus tcp thread
@@ -573,7 +583,7 @@ void *jProcComServer(IN void *pv)
     int i_RecvLen = Int_Initial;
     int i_MsvNum = Int_Initial;
     int i_SendStatus = Int_Initial;
-    ushort_t i_RWeight_Status = UShort_Initial;
+    ushort_t i_RWeight_Status = 0;
     int i;
     char log_char[500];
     i_portnum = commpara.iPort;
@@ -606,6 +616,7 @@ void *jProcComServer(IN void *pv)
         if (i_rtnval < 0)
         {
             SerialOpenStatus[i_portnum] = Return_OpenSerialError;
+
             pthread_exit(NULL);
         }
         // LOG_SUCCESS("jProcComServer:Create com %d success!\n", i_portnum);
@@ -685,9 +696,14 @@ void *jProcComServer(IN void *pv)
             default:
                 break;
             }
-
-            RWeight_Status = i_RWeight_Status;
-
+            // 加锁
+            if (pthread_mutex_lock(&mutex) != 0)
+            {
+                LOG_INFO("pthread mutex lock failed!");
+            }
+            RWeight_Status += i_RWeight_Status;
+            // 解锁
+            pthread_mutex_unlock(&mutex);
             i_SendStatus = jProc_SendSerialCommand(i_portnum, (void *)&i_cmd, (void *)&i_MsvNum);
             if (i_SendStatus < 0)
             {
@@ -746,12 +762,12 @@ int jProc_SendSerialCommand(IN int i_port, IN void *p_data, IN void *msv_len)
     char log_char[500];
     int WTav_addr;
 
-    ushort_t i_RWeight_Status = UShort_Initial;
-    ushort_t i_FunctionCode = UShort_Initial;
-    ushort_t i_RTav_Status = UShort_Initial;
-    ushort_t i_MSV200_Status = UShort_Initial;
-    ushort_t i_RBdr_Status = UShort_Initial;
-    ushort_t i_RZeroRange_Status = UShort_Initial;
+    ushort_t i_RWeight_Status = 0;
+    ushort_t i_FunctionCode = 0;
+    ushort_t i_RTav_Status = 0;
+    ushort_t i_MSV200_Status = 0;
+    ushort_t i_RBdr_Status = 0;
+    ushort_t i_RZeroRange_Status = 0;
     /* keep the incoming parameters into the local vars */
     i_portnum = i_port;
     i_cmd = *(int *)p_data;
@@ -860,14 +876,19 @@ int jProc_SendSerialCommand(IN int i_port, IN void *p_data, IN void *msv_len)
         break;
     }
     }
-
-    RWeight_Status = i_RWeight_Status;
-    FunctionCode = i_FunctionCode;
-    RTav_Status = i_RTav_Status;
-    MSV200_Status = i_MSV200_Status;
-    RBdr_Status = i_RBdr_Status;
-    RZeroRange_Status = i_RZeroRange_Status;
-
+    // 加锁
+    if (pthread_mutex_lock(&mutex) != 0)
+    {
+        LOG_INFO("pthread mutex lock failed!");
+    }
+    RWeight_Status += i_RWeight_Status;
+    FunctionCode += i_FunctionCode;
+    RTav_Status += i_RTav_Status;
+    MSV200_Status += i_MSV200_Status;
+    RBdr_Status += i_RBdr_Status;
+    RZeroRange_Status += i_RZeroRange_Status;
+    // 解锁
+    pthread_mutex_unlock(&mutex);
     SerialFlush(i_portnum);
     SerialWrite(i_portnum, Com_SendBuf, strlen(Com_SendBuf));
     LOG_INFO("Serial Send Data:[%s] Len:[%d] !\n", Com_SendBuf, strlen(Com_SendBuf));
@@ -899,12 +920,12 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
     int cmd_Status1;
     int Cmd_Value2;
     int cmd_Status2;
-    ushort_t i_RWeight_Status = UShort_Initial;
-    ushort_t i_RBdr_Status = UShort_Initial;
-    ushort_t i_RLdw_Status = UShort_Initial;
-    ushort_t i_RLwt_Status = UShort_Initial;
-    ushort_t i_RTav_Status = UShort_Initial;
-    ushort_t i_RZeroRange_Status = UShort_Initial;
+    ushort_t i_RWeight_Status = 0;
+    ushort_t i_RBdr_Status = 0;
+    ushort_t i_RLdw_Status = 0;
+    ushort_t i_RLwt_Status = 0;
+    ushort_t i_RTav_Status = 0;
+    ushort_t i_RZeroRange_Status = 0;
     bool TAV_ValueTrue[End_Port];
     i_portnum = i_port;
     i_NeedRecvLen = *(int *)(p_data);
@@ -934,7 +955,6 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
         i_RecvDataLen = i_Offset;
         LOG_INFO("Serial Recv Len:[%d] Data:\n", i_RecvDataLen);
         // hex_dump(RecBuffer, i_RecvDataLen, 16);
-        jPselect(1);
         if (i_NeedRecvLen == i_RecvDataLen)
         {
             // LOG_INFO("jProc_ReceiveSerialCom:Serial Port(%d)receive data len is (%d) true!\n", i_portnum, i_RecvDataLen);
@@ -1152,7 +1172,6 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                     RWeight_Value[i_portnum] = (int)(Sum / (long)(i_MsvNum - (int)(WTDelay / 5)));
                     Cmd_Value = RWeight_Value[i_portnum];
                     cmd_Status = i_RWeight_Status;
-                    LOG_INFO("Serial Port (%d) Cmd_Msvn recv RWeight_Status:[%d]\n", i_portnum, i_RWeight_Status);
                     sprintf(Cmd_name, "msv%3d", i_MsvNum, 6);
                 }
                 else
@@ -1237,13 +1256,19 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                 }
                 break;
             }
-
-            RWeight_Status = i_RWeight_Status;
-            RBdr_Status = i_RBdr_Status;
-            RLdw_Status = i_RLdw_Status;
-            RLwt_Status = i_RLwt_Status;
-            RTav_Status = i_RTav_Status;
-            RZeroRange_Status = i_RZeroRange_Status;
+            // 加锁
+            if (pthread_mutex_lock(&mutex) != 0)
+            {
+                LOG_INFO("pthread mutex lock failed!");
+            }
+            RWeight_Status += i_RWeight_Status;
+            RBdr_Status += i_RBdr_Status;
+            RLdw_Status += i_RLdw_Status;
+            RLwt_Status += i_RLwt_Status;
+            RTav_Status += i_RTav_Status;
+            RZeroRange_Status += i_RZeroRange_Status;
+            // 解锁
+            pthread_mutex_unlock(&mutex);
 
             // LOG_INFO("jProc_ReceiveSerialCom:Serial Port(%d) Cmd is %s, value is (%d) ,status is (%d),value1 is (%d) ,status1 is (%d), value2 is (%d) ,status2 is (%d)\n", i_portnum, Cmd_name, Cmd_Value, cmd_Status, Cmd_Value1, cmd_Status1, Cmd_Value2, cmd_Status2);
             return Return_Success;
