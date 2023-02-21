@@ -572,7 +572,8 @@ void *jProcComServer(IN void *pv)
     int i_cmd = Int_Initial;
     int i_RecvLen = Int_Initial;
     int i_MsvNum = Int_Initial;
-    int i_SendStatus;
+    int i_SendStatus = Int_Initial;
+    ushort_t i_RWeight_Status = UShort_Initial;
     int i;
     char log_char[500];
     i_portnum = commpara.iPort;
@@ -666,7 +667,7 @@ void *jProcComServer(IN void *pv)
                 break;
             case Cmd_Msv1Tav:
 
-                RWeight_Status = 0;
+                i_RWeight_Status = 0;
                 RTav_Status = 0;
 
                 break;
@@ -674,16 +675,18 @@ void *jProcComServer(IN void *pv)
             case Cmd_Msv200:
             case cmd_msv200Test:
             case Cmd_Msvn:
-                RWeight_Status = 0;
+                i_RWeight_Status = 0;
                 break;
             case cmd_msvnTav:
-                RWeight_Status = 0;
+                i_RWeight_Status = 0;
                 RTav_Status = 0;
                 RZeroRange_Status = 0;
                 break;
             default:
                 break;
             }
+
+            RWeight_Status = i_RWeight_Status;
 
             i_SendStatus = jProc_SendSerialCommand(i_portnum, (void *)&i_cmd, (void *)&i_MsvNum);
             if (i_SendStatus < 0)
@@ -743,6 +746,12 @@ int jProc_SendSerialCommand(IN int i_port, IN void *p_data, IN void *msv_len)
     char log_char[500];
     int WTav_addr;
 
+    ushort_t i_RWeight_Status = UShort_Initial;
+    ushort_t i_FunctionCode = UShort_Initial;
+    ushort_t i_RTav_Status = UShort_Initial;
+    ushort_t i_MSV200_Status = UShort_Initial;
+    ushort_t i_RBdr_Status = UShort_Initial;
+    ushort_t i_RZeroRange_Status = UShort_Initial;
     /* keep the incoming parameters into the local vars */
     i_portnum = i_port;
     i_cmd = *(int *)p_data;
@@ -757,39 +766,34 @@ int jProc_SendSerialCommand(IN int i_port, IN void *p_data, IN void *msv_len)
         sprintf(Com_SendBuf, "Msv?1;Tav?;", 11);
         ReceiveLenBuff = 16;
 
-        RWeight_Status = RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
-        RTav_Status = RTav_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
-        FunctionCode = 1;
-        
-        // LOG_INFO("serial Cmd_Msv1Tav send RWeight_Status:[%d]\n", RWeight_Status);
+        i_RWeight_Status = i_RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        i_RTav_Status = i_RTav_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        i_FunctionCode = 1;
         break;
         /* output 45 measured value */
     case Cmd_Msv45:
         sprintf(Com_SendBuf, "Msv?45;", 7);
         ReceiveLenBuff = 182;
-        RWeight_Status = RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
-        // LOG_INFO("serial Cmd_Msv45 send RWeight_Status:[%d]\n", RWeight_Status);
+        i_RWeight_Status = i_RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         break;
         /* output 200 measured value */
     case Cmd_Msv200:
         sprintf(Com_SendBuf, "Msv?200;", 8);
         ReceiveLenBuff = 802;
-        MSV200_Status = 0;
-        RWeight_Status = RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
-        // LOG_INFO("serial Cmd_Msv200 send RWeight_Status:[%d]\n", RWeight_Status);
+        i_MSV200_Status = 0;
+        i_RWeight_Status = i_RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         break;
     case Cmd_Msvn:
         sprintf(Com_SendBuf, "Msv?%3d;", i_MsvNum, 8);
         ReceiveLenBuff = i_MsvNum * 4 + 2;
-        RWeight_Status = RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
-        LOG_INFO("serial Cmd_Msvn send RWeight_Status:[%d]\n", RWeight_Status);
+        i_RWeight_Status = i_RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         break;
     case Cmd_Tav:
         // 写皮重单元结束读皮重
         sprintf(Com_SendBuf, "Tav%7d;Tdd1;Tav?;", WTav_Value[i_portnum], 21);
         ReceiveLenBuff = 16;
-        FunctionCode = 2;
-        RTav_Status = RTav_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        i_FunctionCode = 2;
+        i_RTav_Status = i_RTav_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         break;
     case Cmd_Ldw:
         sprintf(Com_SendBuf, "dpw\"aed\";spw\"aed\";Ldw;", 26);
@@ -802,8 +806,8 @@ int jProc_SendSerialCommand(IN int i_port, IN void *p_data, IN void *msv_len)
     case Cmd_Tar:
         sprintf(Com_SendBuf, "Tar;Tdd1;Tav?;", 14);
         ReceiveLenBuff = 16;
-        FunctionCode = 2;
-        RTav_Status = RTav_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        i_FunctionCode = 2;
+        i_RTav_Status = i_RTav_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         break;
     case Cmd_Tdd1:
         sprintf(Com_SendBuf, "Tdd1;", 5);
@@ -812,14 +816,14 @@ int jProc_SendSerialCommand(IN int i_port, IN void *p_data, IN void *msv_len)
     case Cmd_RTav:
         sprintf(Com_SendBuf, "Tav?;", 5);
         ReceiveLenBuff = 10;
-        RTav_Status = RTav_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        i_RTav_Status = i_RTav_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         break;
     case Cmd_RBdrLdwLwt:
         sprintf(Com_SendBuf, "bdr?;Ldw?;Lwt?;", 15);
         ReceiveLenBuff = 29;
-        RBdr_Status = RBdr_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
-        RLdw_Status = RLdw_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
-        RLwt_Status = RLwt_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        i_RBdr_Status = i_RBdr_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        i_RBdr_Status = i_RBdr_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        i_RBdr_Status = i_RBdr_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         break;
     case Cmd_Initial:
         sprintf(Com_SendBuf, "dpw\"aed\";spw\"aed\";Fmd%1d;Asf%1d;Hsm%1d;Icr%1d;Cof%1d;Nov%7d;Tdd1;", fmd, asf, hsm, icr, cof, nov, 59);
@@ -828,27 +832,26 @@ int jProc_SendSerialCommand(IN int i_port, IN void *p_data, IN void *msv_len)
     case cmd_msv200Test:
         sprintf(Com_SendBuf, "Msv?200;", 8);
         ReceiveLenBuff = 802;
-        MSV200_Status = 1;
-        RWeight_Status = RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        i_MSV200_Status = 1;
+        i_RWeight_Status = i_RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         break;
     case cmd_msvnTav:
         sprintf(Com_SendBuf, "Msv?%3d;Tav?;", i_MsvNum, 13);
         ReceiveLenBuff = i_MsvNum * 4 + 2 + 10;
-        RWeight_Status = RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
-        RTav_Status = RTav_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
-        RZeroRange_Status = RZeroRange_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
-        LOG_INFO("serial cmd_msvnTav send RWeight_Status:[%d]\n", RWeight_Status);
+        i_RWeight_Status = i_RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        i_RTav_Status = i_RTav_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        i_RZeroRange_Status = i_RZeroRange_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         break;
     case Cmd_RBdr:
         sprintf(Com_SendBuf, "bdr?;", 5);
         ReceiveLenBuff = 9;
-        RBdr_Status = RBdr_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        i_RBdr_Status = i_RBdr_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         break;
     case Cmd_InitialTav:
         // 写皮重单元结束读皮重
         sprintf(Com_SendBuf, "Tav0000000;Tdd1;TAV?;", 16);
         ReceiveLenBuff = 16;
-        FunctionCode = 2;
+        i_FunctionCode = 2;
         break;
     default:
     {
@@ -857,9 +860,18 @@ int jProc_SendSerialCommand(IN int i_port, IN void *p_data, IN void *msv_len)
         break;
     }
     }
+
+    RWeight_Status = i_RWeight_Status;
+    FunctionCode = i_FunctionCode;
+    RTav_Status = i_RTav_Status;
+    MSV200_Status = i_MSV200_Status;
+    RBdr_Status = i_RBdr_Status;
+    RZeroRange_Status = i_RZeroRange_Status;
+
     SerialFlush(i_portnum);
     SerialWrite(i_portnum, Com_SendBuf, strlen(Com_SendBuf));
     LOG_INFO("Serial Send Data:[%s] Len:[%d] !\n", Com_SendBuf, strlen(Com_SendBuf));
+
     /* dbg info */
     // LOG_INFO("jProc_SendSerialCommand:serial(%d) write, cmd is:%s ,need receive len is%d!\n", i_portnum, Com_SendBuf, ReceiveLenBuff);
     return ReceiveLenBuff;
@@ -887,6 +899,12 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
     int cmd_Status1;
     int Cmd_Value2;
     int cmd_Status2;
+    ushort_t i_RWeight_Status = UShort_Initial;
+    ushort_t i_RBdr_Status = UShort_Initial;
+    ushort_t i_RLdw_Status = UShort_Initial;
+    ushort_t i_RLwt_Status = UShort_Initial;
+    ushort_t i_RTav_Status = UShort_Initial;
+    ushort_t i_RZeroRange_Status = UShort_Initial;
     bool TAV_ValueTrue[End_Port];
     i_portnum = i_port;
     i_NeedRecvLen = *(int *)(p_data);
@@ -915,9 +933,8 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
         }
         i_RecvDataLen = i_Offset;
         LOG_INFO("Serial Recv Len:[%d] Data:\n", i_RecvDataLen);
-        jPselect(5);
         // hex_dump(RecBuffer, i_RecvDataLen, 16);
-
+        jPselect(1);
         if (i_NeedRecvLen == i_RecvDataLen)
         {
             // LOG_INFO("jProc_ReceiveSerialCom:Serial Port(%d)receive data len is (%d) true!\n", i_portnum, i_RecvDataLen);
@@ -934,28 +951,28 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                 if (RWeight_Value[i_portnum] >= 0x7fffff)
                     RWeight_Value[i_portnum] = 1 - (0xffffff - RWeight_Value[i_portnum]);
 
-                RWeight_Status = RWeight_Status | (ushort_t)(pow(2, i_portnum));
+                i_RWeight_Status = i_RWeight_Status | (ushort_t)(pow(2, i_portnum));
 
                 sprintf(Cmd_name, "msv1", 4);
                 Cmd_Value = RWeight_Value[i_portnum];
-                cmd_Status = RWeight_Status;
+                cmd_Status = i_RWeight_Status;
                 break;
             case 9:
                 RBdr_Value[i_portnum] = (RecBuffer[0] - 0x30) * 10000 + (RecBuffer[1] - 0x30) * 1000 + (RecBuffer[2] - 0x30) * 100 + (RecBuffer[3] - 0x30) * 10 + (RecBuffer[4] - 0x30);
 
-                RBdr_Status = RBdr_Status | (ushort_t)(pow(2, i_portnum));
+                i_RBdr_Status = i_RBdr_Status | (ushort_t)(pow(2, i_portnum));
                 sprintf(Cmd_name, "bdr", 3);
                 Cmd_Value = RBdr_Value[i_portnum];
-                cmd_Status = RBdr_Status;
+                cmd_Status = i_RBdr_Status;
                 break;
             case 29:
                 RBdr_Value[i_portnum] = (RecBuffer[0] - 0x30) * 10000 + (RecBuffer[1] - 0x30) * 1000 + (RecBuffer[2] - 0x30) * 100 + (RecBuffer[3] - 0x30) * 10 + (RecBuffer[4] - 0x30);
 
-                RBdr_Status = RBdr_Status | (ushort_t)(pow(2, i_portnum));
+                i_RBdr_Status = i_RBdr_Status | (ushort_t)(pow(2, i_portnum));
 
                 sprintf(Cmd_name, "bdr;ldw;lwt;", 12);
                 Cmd_Value = RBdr_Value[i_portnum];
-                cmd_Status = RBdr_Status;
+                cmd_Status = i_RBdr_Status;
                 // ldw零点值
                 m = 0;
                 n = 0;
@@ -969,10 +986,10 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                     m = m * (-1);
                 RLdw_Value[i_portnum] = m;
 
-                RLdw_Status = RLdw_Status | (ushort_t)(pow(2, i_portnum));
+                i_RLdw_Status = i_RLdw_Status | (ushort_t)(pow(2, i_portnum));
 
                 Cmd_Value1 = RLdw_Value[i_portnum];
-                cmd_Status1 = RLdw_Status;
+                cmd_Status1 = i_RLdw_Status;
                 // lwt标定值
                 m = 0;
                 n = 0;
@@ -986,10 +1003,10 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                     m = m * (-1);
                 RLwt_Value[i_portnum] = m;
 
-                RLwt_Status = RLwt_Status | (ushort_t)(pow(2, i_portnum));
+                i_RLwt_Status = i_RLwt_Status | (ushort_t)(pow(2, i_portnum));
 
                 Cmd_Value2 = RLwt_Value[i_portnum];
-                cmd_Status2 = RLwt_Status;
+                cmd_Status2 = i_RLwt_Status;
                 break;
             case 10:
                 m = 0;
@@ -1005,11 +1022,11 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                 // 皮重值
                 RTav_Value[i_portnum] = m;
 
-                RTav_Status = RTav_Status | (ushort_t)(pow(2, i_portnum));
+                i_RTav_Status = i_RTav_Status | (ushort_t)(pow(2, i_portnum));
 
                 sprintf(Cmd_name, "Tav", 3);
                 Cmd_Value = RTav_Value[i_portnum];
-                cmd_Status = RTav_Status;
+                cmd_Status = i_RTav_Status;
                 break;
             case 16:
                 if (FunctionCode == 1)
@@ -1018,11 +1035,11 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                     if (RWeight_Value[i_portnum] >= 0x7fffff)
                         RWeight_Value[i_portnum] = 1 - (0xffffff - RWeight_Value[i_portnum]);
 
-                    RWeight_Status = RWeight_Status | (ushort_t)(pow(2, i_portnum));
+                    i_RWeight_Status = i_RWeight_Status | (ushort_t)(pow(2, i_portnum));
 
                     sprintf(Cmd_name, "msv1?TAV?", 9);
                     Cmd_Value = RWeight_Value[i_portnum];
-                    cmd_Status = RWeight_Status;
+                    cmd_Status = i_RWeight_Status;
                     m = 0;
                     n = 0;
                     j = 0;
@@ -1036,10 +1053,10 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                     // 皮重值
                     RTav_Value[i_portnum] = m;
 
-                    RTav_Status = RTav_Status | (ushort_t)(pow(2, i_portnum));
+                    i_RTav_Status = i_RTav_Status | (ushort_t)(pow(2, i_portnum));
 
                     Cmd_Value1 = RTav_Value[i_portnum];
-                    cmd_Status1 = RTav_Status;
+                    cmd_Status1 = i_RTav_Status;
                 }
                 else if (FunctionCode == 2)
                 {
@@ -1056,17 +1073,17 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                     // 皮重值
                     RTav_Value[i_portnum] = m;
 
-                    RTav_Status = RTav_Status | (ushort_t)(pow(2, i_portnum));
+                    i_RTav_Status = i_RTav_Status | (ushort_t)(pow(2, i_portnum));
 
                     sprintf(Cmd_name, "Tav", 3);
                     Cmd_Value = RTav_Value[i_portnum];
-                    cmd_Status = RTav_Status;
+                    cmd_Status = i_RTav_Status;
                 }
                 break;
-            case 182: //
+            case 182:
                 Sum = 0;
 
-                RWeight_Status = RWeight_Status | (ushort_t)(pow(2, i_portnum));
+                i_RWeight_Status = i_RWeight_Status | (ushort_t)(pow(2, i_portnum));
 
                 for (x = 0; x < 45; x++)
                 {
@@ -1078,12 +1095,12 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                 RWeight_Value[i_portnum] = (int)(Sum / 45);
                 sprintf(Cmd_name, "msv45", 5);
                 Cmd_Value = RWeight_Value[i_portnum];
-                cmd_Status = RWeight_Status;
+                cmd_Status = i_RWeight_Status;
                 break;
             case 802: // 去皮使用
                 Sum = 0;
 
-                RWeight_Status = RWeight_Status | (ushort_t)(pow(2, i_portnum));
+                i_RWeight_Status = i_RWeight_Status | (ushort_t)(pow(2, i_portnum));
 
                 for (x = 0; x < 200; x++)
                 {
@@ -1112,15 +1129,14 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                     sprintf(Cmd_name, "msv200Test", 6);
                 }
                 Cmd_Value = RWeight_Value[i_portnum];
-                cmd_Status = RWeight_Status;
+                cmd_Status = i_RWeight_Status;
                 break;
             default:
                 // msv触发称重
                 if (i_RecvDataLen == (i_MsvNum * 4 + 2))
                 {
-
-                    RWeight_Status = RWeight_Status | (ushort_t)(pow(2, i_portnum));
-                    RZeroRange_Status = 0;
+                    i_RWeight_Status = i_RWeight_Status | (ushort_t)(pow(2, i_portnum));
+                    i_RZeroRange_Status = 0;
 
                     for (x = 0; x < i_MsvNum; x++)
                     {
@@ -1135,8 +1151,8 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                     }
                     RWeight_Value[i_portnum] = (int)(Sum / (long)(i_MsvNum - (int)(WTDelay / 5)));
                     Cmd_Value = RWeight_Value[i_portnum];
-                    cmd_Status = RWeight_Status;
-                    LOG_INFO("serial Cmd_Msvn recv RWeight_Status:[%d]\n", RWeight_Status);
+                    cmd_Status = i_RWeight_Status;
+                    LOG_INFO("Serial Port (%d) Cmd_Msvn recv RWeight_Status:[%d]\n", i_portnum, i_RWeight_Status);
                     sprintf(Cmd_name, "msv%3d", i_MsvNum, 6);
                 }
                 else
@@ -1146,7 +1162,7 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                     if (i_RecvDataLen == (i_MsvNum * 4 + 2 + 10))
                     {
 
-                        RWeight_Status = RWeight_Status | (ushort_t)(pow(2, i_portnum));
+                        i_RWeight_Status = i_RWeight_Status | (ushort_t)(pow(2, i_portnum));
 
                         for (x = 0; x < i_MsvNum; x++)
                         {
@@ -1161,7 +1177,7 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                         }
                         RWeight_Value[i_portnum] = (int)(Sum / (long)(i_MsvNum - (int)(WTDelay / 5)));
                         Cmd_Value = RWeight_Value[i_portnum];
-                        cmd_Status = RWeight_Status;
+                        cmd_Status = i_RWeight_Status;
                         sprintf(Cmd_name, "msv%3d", i_MsvNum, 6);
                         // LOG_INFO("jProc_ReceiveSerialCom:Serial Port(%d) Cmd is %s, value is (%d) ,status(%d)!\n", i_portnum, Cmd_name, Cmd_Value, cmd_Status);
                         j = 0;
@@ -1186,17 +1202,17 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                         // 皮重值
                         RTav_Value[i_portnum] = m;
 
-                        RTav_Status = RTav_Status | (ushort_t)(pow(2, i_portnum));
+                        i_RTav_Status = i_RTav_Status | (ushort_t)(pow(2, i_portnum));
 
                         sprintf(Cmd_name, "Tav", 3);
                         Cmd_Value = RTav_Value[i_portnum];
-                        cmd_Status = RTav_Status;
+                        cmd_Status = i_RTav_Status;
                         // 皮重判断是否异常
                         TAV_ValueTrue[i_portnum] = 1;
 
                         if ((RWeight_Value[i_portnum] > TavValueRange) || (RWeight_Value[i_portnum] < ((-1) * TavValueRange)))
                         {
-                            RZeroRange_Status = RZeroRange_Status | (ushort_t)(pow(2, i_portnum));
+                            i_RZeroRange_Status = i_RZeroRange_Status | (ushort_t)(pow(2, i_portnum));
                             TAV_ValueTrue[i_portnum] = 0;
                         }
 
@@ -1221,6 +1237,14 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                 }
                 break;
             }
+
+            RWeight_Status = i_RWeight_Status;
+            RBdr_Status = i_RBdr_Status;
+            RLdw_Status = i_RLdw_Status;
+            RLwt_Status = i_RLwt_Status;
+            RTav_Status = i_RTav_Status;
+            RZeroRange_Status = i_RZeroRange_Status;
+
             // LOG_INFO("jProc_ReceiveSerialCom:Serial Port(%d) Cmd is %s, value is (%d) ,status is (%d),value1 is (%d) ,status1 is (%d), value2 is (%d) ,status2 is (%d)\n", i_portnum, Cmd_name, Cmd_Value, cmd_Status, Cmd_Value1, cmd_Status1, Cmd_Value2, cmd_Status2);
             return Return_Success;
         }
