@@ -57,4 +57,6 @@ long jGetTick(void);
 int loginput(char *logcontent);
 void jPselect(unsigned long milliseconds);
 long timestamp();
+/*调试打印*/
+void hex_dump(const unsigned char *data, int data_len, int width);
 #endif

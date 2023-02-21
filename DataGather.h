@@ -119,7 +119,7 @@
 #define Serial_ReadMaxLen 100
 #define Serial_MaxLen 1024
 #define Serial_Read_WaitTime 1000 /* waiting time for serial port reading */
-#define Serial_Read_TimeOut 40    /* timeout for serial port reading */
+#define Serial_Read_TimeOut 50    /* timeout for serial port reading */
 /* define function return values here */
 #define Return_HighLevel 3
 #define Return_LowLevel 2

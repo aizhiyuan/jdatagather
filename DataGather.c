@@ -139,8 +139,10 @@ int main(IN int argc, IN char *argv[])
     {
         /* clear the modbus buffer, this must be done before the init() function */
         /*init */
+
         jProInit();
         ReadFileStatus = jReadFileInit();
+
         // 读写IO的线程
         pthread_create(&threadIOReadWrite, NULL, jProcIoReadWrite, NULL);
         GpIoStatus = jGPIoInit();
@@ -149,7 +151,6 @@ int main(IN int argc, IN char *argv[])
         // create semaphore thread
         pthread_create(&threadCommOperation, NULL, jProcCommOperation, NULL);
         pthread_create(&threadSem, NULL, jProcModbusCommandJudge, NULL);
-        //
 
         pthread_create(&threadIORun, NULL, jProcloRun, NULL);
         pthread_create(&threadIOMsv, NULL, jProcIoMsv, NULL);
@@ -161,16 +162,17 @@ int main(IN int argc, IN char *argv[])
             i_enable = m_STCommPara[i].iEnable;
             if (i_enable == 1)
             {
-                LOG_INFO("main:create pthread ComServer%d ...\n", i);
+                // LOG_INFO("main:create pthread ComServer%d ...\n", i);
                 // 运行列反馈
                 ComRun_Status = ComRun_Status | (ushort_t)(pow(2, i));
                 pthread_create(&aThreadSerialCom[i], NULL, jProcComServer, &m_STCommPara[i]);
+                // jPselect(100);
             }
         }
         // create modbus tcp thread
         if (m_iServerEnable == 1)
         {
-            LOG_INFO("main:create pthread ModbusTcp Server!\n");
+            // LOG_INFO("main:create pthread ModbusTcp Server!\n");
             pthread_create(&threadModbusTcp, NULL, jProcModbusTcpServer, NULL);
         }
         // join thread jProcCommOperation
@@ -202,7 +204,7 @@ int main(IN int argc, IN char *argv[])
             sem_destroy(&semComStart[i]);
         }
         sem_destroy(&semModbusTcp);
-        LOG_SUCCESS("main:Exit Program Run!\n");
+        // LOG_SUCCESS("main:Exit Program Run!\n");
     }
     catch (const Exception &e)
     {
@@ -216,52 +218,52 @@ void *jProcCommOperation(IN void *pv)
     char log_char[500];
     int WTav_addr, RWeight_addr, RTav_addr, RLdw_addr, RLwt_addr, RBdr_addr;
     int Result, Result1;
-    int ai_gpio = Int_Initial;
     ushort_t RunStopCode = 0;
-    ai_gpio = 5;
     while (1)
     {
         // 运行判断
         if (ModbusDataBuf[PlcWAdr_RunStop] > RunStopCode || ModbusDataBuf[PlcWAdr_RunStop] < RunStopCode)
         {
             RunStopCode = ModbusDataBuf[PlcWAdr_RunStop];
-            LOG_SUCCESS("jProcCommOperation:Device receive run cmd is %d!\n", ModbusDataBuf[PlcWAdr_RunStop]);
+            // LOG_SUCCESS("jProcCommOperation:Device receive run cmd is %d!\n", ModbusDataBuf[PlcWAdr_RunStop]);
             switch (ModbusDataBuf[PlcWAdr_RunStop])
             {
             case 101:
-                LOG_SUCCESS("jProcCommOperation:Device receive run!\n");
-                // jDoSet(ai_gpio);
+                // LOG_SUCCESS("jProcCommOperation:Device receive run!\n");
+
                 // jSet_do_state(0x04, 1);
                 g_uc_do_set_value[2] = 1;
+
                 jPselect(20);
                 if (jGet_do_state(0x04))
                 {
-                    LOG_SUCCESS("DO-3 set 1 success!\n");
+                    // LOG_SUCCESS("DO-3 set 1 success!\n");
                 }
                 else
                 {
                     LOG_ERROR("DO-3 set 1 fail!\n");
                 }
                 StickRun = 1;
-                LOG_INFO("Io Start Ok!\n");
+                // LOG_INFO("Io Start Ok!\n");
                 break;
             case 201:
                 LOG_ERROR("jProcCommOperation:Device receive stop!\n");
-                IoMsvProcess = 0;
-                // jDoClear(ai_gpio);
                 // jSet_do_state(0x04, 0);
                 g_uc_do_set_value[2] = 0;
+
                 jPselect(20);
                 if (!jGet_do_state(0x04))
                 {
-                    LOG_SUCCESS("DO-3 set 0 success!\n");
+                    // LOG_SUCCESS("DO-3 set 0 success!\n");
                 }
                 else
                 {
                     LOG_ERROR("DO-3 set 0 fail!\n");
                 }
+
                 StickRun = 0;
-                LOG_INFO("Io Stop Ok!\n");
+
+                // LOG_INFO("Io Stop Ok!\n");
                 break;
             case 301:
                 LOG_WARN("jProcCommOperation:Device receive reset!\n");
@@ -291,7 +293,6 @@ void *jProcCommOperation(IN void *pv)
             ModbusDataBuf[PlcRAdr_FunctionSelect] = (ushort_t)(pow(2, 1));
         }
         // 参数读写
-
         if ((FunctionSelect & (ushort_t)(pow(2, 2))) || (FunctionSelect & (ushort_t)(pow(2, 3))))
         {
             ReadWriteParaStatus = jProcRWPara();
@@ -488,7 +489,7 @@ void *jProcModbusTcpServer(IN void *pv)
         ListenSocket<CModbusTcp> ListenModbus(ModbusTcpIp);
         ListenModbus.Bind(m_iModbusTcpPort);
         ModbusTcpIp.Add(&ListenModbus);
-        LOG_SUCCESS("jProcModbusTcpServer:create pthread modbus TCP success!\n");
+        // LOG_SUCCESS("jProcModbusTcpServer:create pthread modbus TCP success!\n");
         while (1)
         {
             ModbusTcpIp.Select();
@@ -507,16 +508,16 @@ void *jProcModbusCommandJudge(IN void *pv)
     char log_char[500];
     while (1)
     {
-        LOG_INFO("jProcModbusCommandJudge:Wait semmodbus tcp!\n");
+        // LOG_INFO("jProcModbusCommandJudge:Wait semmodbus tcp!\n");
         sem_wait(&semModbusTcp);
-        LOG_INFO("jProcModbusCommandJudge:Receive Modbus Command is%d!\n", ModbusDataBuf[PlcWAdr_Command]);
+        // LOG_INFO("jProcModbusCommandJudge:Receive Modbus Command is%d!\n", ModbusDataBuf[PlcWAdr_Command]);
         /* after reading the status, clear */
         if (!StickRun && !firstCycle)
         {
             /*设置串口sem*/
             if ((Cmd_Msv1Tav <= ModbusDataBuf[PlcWAdr_Command]) && (ModbusDataBuf[PlcWAdr_Command] <= Cmd_InitialTav))
             {
-                LOG_INFO("jProcModbusCommandJudge:Plc Write Muodule cmd is %d,Channel Enable %d!\n", ModbusDataBuf[PlcWAdr_Command], Column_SelectStatus);
+                // LOG_INFO("jProcModbusCommandJudge:Plc Write Muodule cmd is %d,Channel Enable %d!\n", ModbusDataBuf[PlcWAdr_Command], Column_SelectStatus);
                 for (i = Start_Port; i < End_Port; i++)
                 {
                     /*判断是否为使能*/
@@ -565,7 +566,7 @@ void *jProcModbusCommandJudge(IN void *pv)
 void *jProcComServer(IN void *pv)
 {
     struct ST_CommPara commpara = *(struct ST_CommPara *)pv;
-    // LOG_INFO("串口运行: SerialPort: %s,Port: %d,Enable: %d,Baud: %d,DataBits: %d,StopBits: %d,Parity: %d,TimeInterVal: %d!\n", commpara.tSerialPort, commpara.iPort, commpara.iEnable, commpara.iBaud, commpara.iDataBits, commpara.iStopBits, commpara.iParity, commpara.iTimeInterVal);
+    // // LOG_INFO("串口运行: SerialPort: %s,Port: %d,Enable: %d,Baud: %d,DataBits: %d,StopBits: %d,Parity: %d,TimeInterVal: %d!\n", commpara.tSerialPort, commpara.iPort, commpara.iEnable, commpara.iBaud, commpara.iDataBits, commpara.iStopBits, commpara.iParity, commpara.iTimeInterVal);
     int i_portnum = Int_Initial;
     int i_rtnval = Int_Initial;
     int i_cmd = Int_Initial;
@@ -606,7 +607,7 @@ void *jProcComServer(IN void *pv)
             SerialOpenStatus[i_portnum] = Return_OpenSerialError;
             pthread_exit(NULL);
         }
-        LOG_SUCCESS("jProcComServer:Create com %d success!\n", i_portnum);
+        // LOG_SUCCESS("jProcComServer:Create com %d success!\n", i_portnum);
         while (1)
         {
             i_rtnval = 0;
@@ -643,7 +644,7 @@ void *jProcComServer(IN void *pv)
             i_MsvNum = 90;
             if (ReadCount > 0)
                 i_MsvNum = ReadCount;
-            LOG_INFO("jProcComServer:Write comport is %d,cmd is%d,msvnum is %d!\n", i_portnum, i_cmd, i_MsvNum);
+            // LOG_INFO("jProcComServer:Write comport is %d,cmd is%d,msvnum is %d!\n", i_portnum, i_cmd, i_MsvNum);
             i_RecvLen = 0;
             i_SendStatus = 0;
             switch (i_cmd)
@@ -664,8 +665,10 @@ void *jProcComServer(IN void *pv)
                 RTav_Status = 0;
                 break;
             case Cmd_Msv1Tav:
+
                 RWeight_Status = 0;
                 RTav_Status = 0;
+
                 break;
             case Cmd_Msv45:
             case Cmd_Msv200:
@@ -721,7 +724,7 @@ void *jProcComServer(IN void *pv)
                 default:
                     break;
                 }
-                LOG_INFO("jProcComServer:Receive com port is %d , recvlen is %d ,msvnum is %d !\n", i_portnum, i_RecvLen, i_MsvNum);
+                // LOG_INFO("jProcComServer:Receive com port is %d , recvlen is %d ,msvnum is %d !\n", i_portnum, i_RecvLen, i_MsvNum);
                 SerialReadStatus[i_portnum] = jProc_ReceiveSerialCom(i_portnum, (void *)&i_RecvLen, (void *)&i_MsvNum);
             }
         }
@@ -745,7 +748,7 @@ int jProc_SendSerialCommand(IN int i_port, IN void *p_data, IN void *msv_len)
     i_cmd = *(int *)p_data;
     i_MsvNum = *(int *)msv_len;
     /*-----*/
-    LOG_INFO("jProc_SendSerialCommand:comport is %d,cmd is%d,msvnum is %d!\n", i_portnum, i_cmd, i_MsvNum);
+    // LOG_INFO("jProc_SendSerialCommand:comport is %d,cmd is%d,msvnum is %d!\n", i_portnum, i_cmd, i_MsvNum);
     /*-----*/
     memset(&Com_SendBuf[0], 0x00, sizeof(Com_SendBuf));
     switch (i_cmd)
@@ -753,15 +756,19 @@ int jProc_SendSerialCommand(IN int i_port, IN void *p_data, IN void *msv_len)
     case Cmd_Msv1Tav:
         sprintf(Com_SendBuf, "Msv?1;Tav?;", 11);
         ReceiveLenBuff = 16;
+
         RWeight_Status = RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         RTav_Status = RTav_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         FunctionCode = 1;
+        
+        // LOG_INFO("serial Cmd_Msv1Tav send RWeight_Status:[%d]\n", RWeight_Status);
         break;
         /* output 45 measured value */
     case Cmd_Msv45:
         sprintf(Com_SendBuf, "Msv?45;", 7);
         ReceiveLenBuff = 182;
         RWeight_Status = RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        // LOG_INFO("serial Cmd_Msv45 send RWeight_Status:[%d]\n", RWeight_Status);
         break;
         /* output 200 measured value */
     case Cmd_Msv200:
@@ -769,11 +776,13 @@ int jProc_SendSerialCommand(IN int i_port, IN void *p_data, IN void *msv_len)
         ReceiveLenBuff = 802;
         MSV200_Status = 0;
         RWeight_Status = RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        // LOG_INFO("serial Cmd_Msv200 send RWeight_Status:[%d]\n", RWeight_Status);
         break;
     case Cmd_Msvn:
         sprintf(Com_SendBuf, "Msv?%3d;", i_MsvNum, 8);
         ReceiveLenBuff = i_MsvNum * 4 + 2;
         RWeight_Status = RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        LOG_INFO("serial Cmd_Msvn send RWeight_Status:[%d]\n", RWeight_Status);
         break;
     case Cmd_Tav:
         // 写皮重单元结束读皮重
@@ -828,6 +837,7 @@ int jProc_SendSerialCommand(IN int i_port, IN void *p_data, IN void *msv_len)
         RWeight_Status = RWeight_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         RTav_Status = RTav_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
         RZeroRange_Status = RZeroRange_Status & (0xffff - (ushort_t)(pow(2, i_portnum)));
+        LOG_INFO("serial cmd_msvnTav send RWeight_Status:[%d]\n", RWeight_Status);
         break;
     case Cmd_RBdr:
         sprintf(Com_SendBuf, "bdr?;", 5);
@@ -849,8 +859,9 @@ int jProc_SendSerialCommand(IN int i_port, IN void *p_data, IN void *msv_len)
     }
     SerialFlush(i_portnum);
     SerialWrite(i_portnum, Com_SendBuf, strlen(Com_SendBuf));
+    LOG_INFO("Serial Send Data:[%s] Len:[%d] !\n", Com_SendBuf, strlen(Com_SendBuf));
     /* dbg info */
-    LOG_INFO("jProc_SendSerialCommand:serial(%d) write, cmd is:%s ,need receive len is%d!\n", i_portnum, Com_SendBuf, ReceiveLenBuff);
+    // LOG_INFO("jProc_SendSerialCommand:serial(%d) write, cmd is:%s ,need receive len is%d!\n", i_portnum, Com_SendBuf, ReceiveLenBuff);
     return ReceiveLenBuff;
 }
 int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
@@ -894,17 +905,22 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
         for (i = 0; i < i_Readtimes; i++)
         {
             i_ReadLen = SerialRead(i_portnum, RecBuffer + i_Offset, Serial_ReadMaxLen, Serial_Read_WaitTime, Serial_Read_TimeOut);
+            // LOG_INFO("Serial Port(%d) Recv Data Len:[%d] !\n", i, i_ReadLen);
             i_Offset += i_ReadLen;
             if (i_ReadLen == 0)
             {
-                LOG_INFO("jProc_ReceiveSerialCom:Serial Port(%d) read time out%d!\n", i_portnum, i);
+                // LOG_INFO("jProc_ReceiveSerialCom:Serial Port(%d) read time out%d!\n", i_portnum, i);
                 return Return_SerialTimeOut;
             }
         }
         i_RecvDataLen = i_Offset;
+        LOG_INFO("Serial Recv Len:[%d] Data:\n", i_RecvDataLen);
+        jPselect(5);
+        // hex_dump(RecBuffer, i_RecvDataLen, 16);
+
         if (i_NeedRecvLen == i_RecvDataLen)
         {
-            LOG_INFO("jProc_ReceiveSerialCom:Serial Port(%d)receive data len is (%d) true!\n", i_portnum, i_RecvDataLen);
+            // LOG_INFO("jProc_ReceiveSerialCom:Serial Port(%d)receive data len is (%d) true!\n", i_portnum, i_RecvDataLen);
             Cmd_Value1 = 0;
             cmd_Status1 = 0;
             Cmd_Value2 = 0;
@@ -917,13 +933,16 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                 RWeight_Value[i_portnum] = RecBuffer[0] * 65536 + RecBuffer[1] * 256 + RecBuffer[2];
                 if (RWeight_Value[i_portnum] >= 0x7fffff)
                     RWeight_Value[i_portnum] = 1 - (0xffffff - RWeight_Value[i_portnum]);
+
                 RWeight_Status = RWeight_Status | (ushort_t)(pow(2, i_portnum));
+
                 sprintf(Cmd_name, "msv1", 4);
                 Cmd_Value = RWeight_Value[i_portnum];
                 cmd_Status = RWeight_Status;
                 break;
             case 9:
                 RBdr_Value[i_portnum] = (RecBuffer[0] - 0x30) * 10000 + (RecBuffer[1] - 0x30) * 1000 + (RecBuffer[2] - 0x30) * 100 + (RecBuffer[3] - 0x30) * 10 + (RecBuffer[4] - 0x30);
+
                 RBdr_Status = RBdr_Status | (ushort_t)(pow(2, i_portnum));
                 sprintf(Cmd_name, "bdr", 3);
                 Cmd_Value = RBdr_Value[i_portnum];
@@ -931,7 +950,9 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                 break;
             case 29:
                 RBdr_Value[i_portnum] = (RecBuffer[0] - 0x30) * 10000 + (RecBuffer[1] - 0x30) * 1000 + (RecBuffer[2] - 0x30) * 100 + (RecBuffer[3] - 0x30) * 10 + (RecBuffer[4] - 0x30);
+
                 RBdr_Status = RBdr_Status | (ushort_t)(pow(2, i_portnum));
+
                 sprintf(Cmd_name, "bdr;ldw;lwt;", 12);
                 Cmd_Value = RBdr_Value[i_portnum];
                 cmd_Status = RBdr_Status;
@@ -947,7 +968,9 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                 if (RecBuffer[9] == 0x2d)
                     m = m * (-1);
                 RLdw_Value[i_portnum] = m;
+
                 RLdw_Status = RLdw_Status | (ushort_t)(pow(2, i_portnum));
+
                 Cmd_Value1 = RLdw_Value[i_portnum];
                 cmd_Status1 = RLdw_Status;
                 // lwt标定值
@@ -962,7 +985,9 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                 if (RecBuffer[19] == 0x2d)
                     m = m * (-1);
                 RLwt_Value[i_portnum] = m;
+
                 RLwt_Status = RLwt_Status | (ushort_t)(pow(2, i_portnum));
+
                 Cmd_Value2 = RLwt_Value[i_portnum];
                 cmd_Status2 = RLwt_Status;
                 break;
@@ -979,7 +1004,9 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                     m = m * (-1);
                 // 皮重值
                 RTav_Value[i_portnum] = m;
+
                 RTav_Status = RTav_Status | (ushort_t)(pow(2, i_portnum));
+
                 sprintf(Cmd_name, "Tav", 3);
                 Cmd_Value = RTav_Value[i_portnum];
                 cmd_Status = RTav_Status;
@@ -990,7 +1017,9 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                     RWeight_Value[i_portnum] = RecBuffer[0] * 65536 + RecBuffer[1] * 256 + RecBuffer[2];
                     if (RWeight_Value[i_portnum] >= 0x7fffff)
                         RWeight_Value[i_portnum] = 1 - (0xffffff - RWeight_Value[i_portnum]);
+
                     RWeight_Status = RWeight_Status | (ushort_t)(pow(2, i_portnum));
+
                     sprintf(Cmd_name, "msv1?TAV?", 9);
                     Cmd_Value = RWeight_Value[i_portnum];
                     cmd_Status = RWeight_Status;
@@ -1006,7 +1035,9 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                         m = m * (-1);
                     // 皮重值
                     RTav_Value[i_portnum] = m;
+
                     RTav_Status = RTav_Status | (ushort_t)(pow(2, i_portnum));
+
                     Cmd_Value1 = RTav_Value[i_portnum];
                     cmd_Status1 = RTav_Status;
                 }
@@ -1024,7 +1055,9 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                         m = m * (-1);
                     // 皮重值
                     RTav_Value[i_portnum] = m;
+
                     RTav_Status = RTav_Status | (ushort_t)(pow(2, i_portnum));
+
                     sprintf(Cmd_name, "Tav", 3);
                     Cmd_Value = RTav_Value[i_portnum];
                     cmd_Status = RTav_Status;
@@ -1032,7 +1065,9 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                 break;
             case 182: //
                 Sum = 0;
+
                 RWeight_Status = RWeight_Status | (ushort_t)(pow(2, i_portnum));
+
                 for (x = 0; x < 45; x++)
                 {
                     Data[x] = 65536 * (long)RecBuffer[4 * x] + 256 * (long)RecBuffer[4 * x + 1] + (long)RecBuffer[4 * x + 2];
@@ -1047,7 +1082,9 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                 break;
             case 802: // 去皮使用
                 Sum = 0;
+
                 RWeight_Status = RWeight_Status | (ushort_t)(pow(2, i_portnum));
+
                 for (x = 0; x < 200; x++)
                 {
                     Data[x] = 65536 * (long)RecBuffer[4 * x] + 256 * (long)RecBuffer[4 * x + 1] + (long)RecBuffer[4 * x + 2];
@@ -1081,7 +1118,10 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                 // msv触发称重
                 if (i_RecvDataLen == (i_MsvNum * 4 + 2))
                 {
+
                     RWeight_Status = RWeight_Status | (ushort_t)(pow(2, i_portnum));
+                    RZeroRange_Status = 0;
+
                     for (x = 0; x < i_MsvNum; x++)
                     {
                         Data[x] = 65536 * (long)RecBuffer[4 * x] + 256 * (long)RecBuffer[4 * x + 1] + (long)RecBuffer[4 * x + 2];
@@ -1096,8 +1136,8 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                     RWeight_Value[i_portnum] = (int)(Sum / (long)(i_MsvNum - (int)(WTDelay / 5)));
                     Cmd_Value = RWeight_Value[i_portnum];
                     cmd_Status = RWeight_Status;
+                    LOG_INFO("serial Cmd_Msvn recv RWeight_Status:[%d]\n", RWeight_Status);
                     sprintf(Cmd_name, "msv%3d", i_MsvNum, 6);
-                    RZeroRange_Status = 0;
                 }
                 else
                 {
@@ -1105,7 +1145,9 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                     // 重量处理
                     if (i_RecvDataLen == (i_MsvNum * 4 + 2 + 10))
                     {
+
                         RWeight_Status = RWeight_Status | (ushort_t)(pow(2, i_portnum));
+
                         for (x = 0; x < i_MsvNum; x++)
                         {
                             Data[x] = 65536 * (long)RecBuffer[4 * x] + 256 * (long)RecBuffer[4 * x + 1] + (long)RecBuffer[4 * x + 2];
@@ -1121,7 +1163,7 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                         Cmd_Value = RWeight_Value[i_portnum];
                         cmd_Status = RWeight_Status;
                         sprintf(Cmd_name, "msv%3d", i_MsvNum, 6);
-                        LOG_INFO("jProc_ReceiveSerialCom:Serial Port(%d) Cmd is %s, value is (%d) ,status(%d)!\n", i_portnum, Cmd_name, Cmd_Value, cmd_Status);
+                        // LOG_INFO("jProc_ReceiveSerialCom:Serial Port(%d) Cmd is %s, value is (%d) ,status(%d)!\n", i_portnum, Cmd_name, Cmd_Value, cmd_Status);
                         j = 0;
                         n = 0;
                         y = i_MsvNum * 4 + 2;
@@ -1143,17 +1185,21 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                             m = m * (-1);
                         // 皮重值
                         RTav_Value[i_portnum] = m;
+
                         RTav_Status = RTav_Status | (ushort_t)(pow(2, i_portnum));
+
                         sprintf(Cmd_name, "Tav", 3);
                         Cmd_Value = RTav_Value[i_portnum];
                         cmd_Status = RTav_Status;
                         // 皮重判断是否异常
                         TAV_ValueTrue[i_portnum] = 1;
+
                         if ((RWeight_Value[i_portnum] > TavValueRange) || (RWeight_Value[i_portnum] < ((-1) * TavValueRange)))
                         {
                             RZeroRange_Status = RZeroRange_Status | (ushort_t)(pow(2, i_portnum));
                             TAV_ValueTrue[i_portnum] = 0;
                         }
+
                         if (TAV_ValueTrue[i_portnum])
                         {
                             // 皮重值计算
@@ -1162,7 +1208,7 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                             sprintf(Com_SendBuf, "Tav%7d;Tdd1;", WTav_Value[i_portnum], 16);
                             SerialFlush(i_portnum);
                             SerialWrite(i_portnum, Com_SendBuf, strlen(Com_SendBuf));
-                            LOG_INFO("jProc_ReceiveSerialCom:serial(%d) write, cmd is:%s,value(%d)!\n", i_portnum, Com_SendBuf, WTav_Value[i_portnum]);
+                            LOG_INFO("serial(%d) write, cmd is:%s,value(%d)!\n", i_portnum, Com_SendBuf, WTav_Value[i_portnum]);
                             TAV_ValueTrue[i_portnum] = 0;
                         }
                         // 皮重值反馈到上位
@@ -1175,7 +1221,7 @@ int jProc_ReceiveSerialCom(IN int i_port, void *p_data, IN void *msv_len)
                 }
                 break;
             }
-            LOG_INFO("jProc_ReceiveSerialCom:Serial Port(%d) Cmd is %s, value is (%d) ,status is (%d),value1 is (%d) ,status1 is (%d), value2 is (%d) ,status2 is (%d)\n", i_portnum, Cmd_name, Cmd_Value, cmd_Status, Cmd_Value1, cmd_Status1, Cmd_Value2, cmd_Status2);
+            // LOG_INFO("jProc_ReceiveSerialCom:Serial Port(%d) Cmd is %s, value is (%d) ,status is (%d),value1 is (%d) ,status1 is (%d), value2 is (%d) ,status2 is (%d)\n", i_portnum, Cmd_name, Cmd_Value, cmd_Status, Cmd_Value1, cmd_Status1, Cmd_Value2, cmd_Status2);
             return Return_Success;
         }
         else
@@ -1237,13 +1283,12 @@ void *jProcloRun(IN void *pv)
             if (jGet_di_state(0x01) && !StickRun)
             {
                 StickRun = 1;
-                LOG_INFO("jProcloRun:Device receive run,StickRun is 1!\n");
+                // LOG_INFO("jProcloRun:Device receive run,StickRun is 1!\n");
             }
             if (!jGet_di_state(0x01) && StickRun)
             {
-                IoMsvProcess = 0;
                 StickRun = 0;
-                LOG_INFO("jProcloRun:Device receive stop,,StickRun is 0!\n");
+                // LOG_INFO("jProcloRun:Device receive stop,,StickRun is 0!\n");
             }
             // 复位
             if (jGet_di_state(0x08))
@@ -1251,21 +1296,20 @@ void *jProcloRun(IN void *pv)
                 if (StickRun == 0)
                 {
                     jProcReset();
-                    LOG_INFO("jProcloRun:Device receive reset!\n");
+                    // LOG_INFO("jProcloRun:Device receive reset!\n");
                 }
             }
         }
-
-        //
         if (firstCycle)
         {
-            // jDoClear(1);
             // jSet_do_state(0x01, 0);
+
             g_uc_do_set_value[0] = 0;
+
             jPselect(20);
             if (!jGet_do_state(0x01))
             {
-                LOG_SUCCESS("DO-1 set 0 success!\n");
+                // LOG_SUCCESS("DO-1 set 0 success!\n");
             }
             else
             {
@@ -1274,13 +1318,14 @@ void *jProcloRun(IN void *pv)
         }
         else
         {
-            // jDoSet(1);
             // jSet_do_state(0x01, 1);
+
             g_uc_do_set_value[0] = 1;
+
             jPselect(20);
             if (jGet_do_state(0x01))
             {
-                LOG_SUCCESS("DO-1 set 1 success!\n");
+                // LOG_SUCCESS("DO-1 set 1 success!\n");
             }
             else
             {
@@ -1291,15 +1336,16 @@ void *jProcloRun(IN void *pv)
             {
                 if (!(jGet_do_state(0x04)) && StickRun)
                 {
-                    LOG_INFO("jProcloRunOut:run out!\n");
+                    // LOG_INFO("jProcloRunOut:run out!\n");
                 }
-                // jDoSet(5);
                 // jSet_do_state(0x04, 1);
+
                 g_uc_do_set_value[2] = 1;
+
                 jPselect(20);
                 if (jGet_do_state(0x01))
                 {
-                    LOG_SUCCESS("DO-3 set 1 success!\n");
+                    // LOG_SUCCESS("DO-3 set 1 success!\n");
                 }
                 else
                 {
@@ -1310,15 +1356,16 @@ void *jProcloRun(IN void *pv)
             {
                 if (jGet_do_state(0x04) && !StickRun)
                 {
-                    LOG_INFO("jProcloRunOut:stop out!\n");
+                    // LOG_INFO("jProcloRunOut:stop out!\n");
                 }
-                // jDoClear(5);
+
                 // jSet_do_state(0x04, 0);
                 g_uc_do_set_value[2] = 0;
+
                 jPselect(20);
                 if (!jGet_do_state(0x04))
                 {
-                    LOG_SUCCESS("DO-3 set 0 success!\n");
+                    // LOG_SUCCESS("DO-3 set 0 success!\n");
                 }
                 else
                 {
@@ -1332,31 +1379,26 @@ void *jProcloRun(IN void *pv)
 // 触发IO
 void *jProcIoMsv(IN void *pv)
 {
-    bool OutSignle = 0;
     int RWeight_addr, i, RTav_addr;
-    time_t oil_time, new_time;
-    int i_status = 0;
+    long oil_time, new_time, seril_timeout;
     while (1)
     {
         if (StickRun)
         {
-            //  if (jDiCheckPositive(ai_gpio[0], 0, 0) == Return_HighLevel && !IoMsvProcess)
             int di_2_value = jGet_di_state(0x02);
-            // LOG_INFO("DO-2 value %d \n", di_2_value);
+            // LOG_INFO("DO-2 in value %d \n", di_2_value);
             if (di_2_value)
             {
-                LOG_INFO("jProcIoMsv:Stick Cycle Signal!\n");
+                // LOG_INFO("jProcIoMsv:Stick Cycle Signal!\n");
                 IoMsvComEnable = 0;
                 RWeight_Status = 0;
                 ModbusDataBuf[PlcRAdr_ReadWeightStatus] = 0;
 
                 TrigeStart_Time = jGetTick();
                 TrigeTimes = TrigeTimes + 1;
-                i_status = 1;
-                // IoMsvProcess = 1;
                 // 物料信号
                 int di_4_value = jGet_di_state(0x04);
-                // LOG_INFO("DO-4 value %d \n", di_4_value);
+                // // LOG_INFO("DO-4 value %d \n", di_4_value);
                 if (di_4_value)
                 {
                     MaterialSignal = 1;
@@ -1382,14 +1424,10 @@ void *jProcIoMsv(IN void *pv)
                         IoMsvComEnable += (ushort_t)(pow(2, i));
                     }
                 }
-            }
-            if (i_status)
-            {
-                jPselect(5);
-                // IoMsvProcess = 0;
-                StartWait = 1;
+                LOG_INFO("IoMsvComEnable:[%d]\n", IoMsvComEnable);
                 oil_time = timestamp();
-                while (StartWait)
+                jPselect(5);
+                while (1)
                 {
                     new_time = timestamp();
                     if ((new_time - oil_time) >= 1000)
@@ -1397,7 +1435,6 @@ void *jProcIoMsv(IN void *pv)
                         IoMsvComEnable = 0;
                         RWeight_Status = 0;
                         int di_4_value = jGet_di_state(0x04);
-                        // LOG_INFO("DO-4 value %d \n", di_4_value);
                         if (di_4_value)
                         {
                             MaterialSignal = 1;
@@ -1406,7 +1443,7 @@ void *jProcIoMsv(IN void *pv)
                         {
                             MaterialSignal = 0;
                         }
-                        // OutSignle = 1;
+
                         for (i = Start_Port; i < End_Port; i++)
                         {
                             /*判断是否为使能*/
@@ -1425,11 +1462,14 @@ void *jProcIoMsv(IN void *pv)
                             }
                         }
                         oil_time = timestamp();
+                        LOG_INFO("RESTART IoMsvComEnable:[%d]\n", IoMsvComEnable);
                     }
+
                     if ((IoMsvComEnable == RWeight_Status))
                     {
-                        // if (IoMsvProcess)
-                        // {
+                        LOG_INFO("RWeight_Status:[%d]\n", RWeight_Status);
+                        seril_timeout = timestamp();
+                        LOG_INFO("serial timeout [%d]\n", seril_timeout - oil_time);
                         TrigeEnd_Time = jGetTick();
                         ModbusDataBuf[80] = TrigeEnd_Time - TrigeStart_Time;
                         RunTimes = RunTimes + 1;
@@ -1445,40 +1485,36 @@ void *jProcIoMsv(IN void *pv)
                         ModbusDataBuf[92] = ModbusDataBuf[91];
                         ModbusDataBuf[91] = ModbusDataBuf[90];
                         ModbusDataBuf[90] = ModbusDataBuf[80];
-                        // }
-                        if (StickRun)
+
+                        ModbusDataBuf[PlcRAdr_ReadWeightStatus] = RWeight_Status;
+                        RWeight_addr = PlcRAdr_Column1_LWeight;
+                        ModbusDataBuf[PlcRAdr_ReadTavStatus] = RTav_Status;
+                        ModbusDataBuf[PlcRAdr_ZeroRangeStatus] = RZeroRange_Status;
+                        RTav_addr = PlcRAdr_Column1_LTAV;
+                        for (i = Start_Port; i < End_Port; i++)
                         {
-                            ModbusDataBuf[PlcRAdr_ReadWeightStatus] = RWeight_Status;
-                            RWeight_addr = PlcRAdr_Column1_LWeight;
-                            ModbusDataBuf[PlcRAdr_ReadTavStatus] = RTav_Status;
-                            ModbusDataBuf[PlcRAdr_ZeroRangeStatus] = RZeroRange_Status;
-                            RTav_addr = PlcRAdr_Column1_LTAV;
-                            for (i = Start_Port; i < End_Port; i++)
-                            {
-                                // weight
-                                ModbusDataBuf[RWeight_addr + i * 2] = RWeight_Value[i] & 0xffff;
-                                ModbusDataBuf[RWeight_addr + i * 2 + 1] = RWeight_Value[i] >> 16;
-                                // tav
-                                ModbusDataBuf[RTav_addr + i * 2] = RTav_Value[i] & 0xffff;
-                                ModbusDataBuf[RTav_addr + i * 2 + 1] = RTav_Value[i] >> 16;
-                            }
+                            // weight
+                            ModbusDataBuf[RWeight_addr + i * 2] = RWeight_Value[i] & 0xffff;
+                            ModbusDataBuf[RWeight_addr + i * 2 + 1] = RWeight_Value[i] >> 16;
+                            // tav
+                            ModbusDataBuf[RTav_addr + i * 2] = RTav_Value[i] & 0xffff;
+                            ModbusDataBuf[RTav_addr + i * 2 + 1] = RTav_Value[i] >> 16;
                         }
-                        // jDoSet(3);
+
                         // jSet_do_state(0x02, 1);
                         g_uc_do_set_value[1] = 1;
                         jPselect(20);
                         int do_2_value = jGet_do_state(0x02);
-                        // LOG_INFO("DO-2 value %d \n", do_2_value);
+                        // // LOG_INFO("DO-2 value %d \n", do_2_value);
                         if (do_2_value)
                         {
-                            LOG_SUCCESS("DO-2 set 1 success!\n");
+                            // LOG_SUCCESS("DO-2 set 1 success!\n");
                         }
                         else
                         {
                             LOG_ERROR("DO-2 set 1 fail!\n");
                         }
                         jPselect(200);
-                        // jPselect(100);
                         // jSet_do_state(0x02, 0);
                         g_uc_do_set_value[1] = 0;
                         jPselect(20);
@@ -1486,15 +1522,14 @@ void *jProcIoMsv(IN void *pv)
                         // LOG_INFO("DO-2 value %d \n", do_2_value);
                         if (!do_2_value)
                         {
-                            LOG_SUCCESS("DO-2 set 0 success!\n");
+                            // LOG_SUCCESS("DO-2 set 0 success!\n");
                         }
                         else
                         {
                             LOG_ERROR("DO-2 set 0 fail!\n");
                         }
-                        StartWait = 0;
+                        break;
                     }
-
                     jPselect(5);
                 }
             }
@@ -1506,17 +1541,6 @@ void *jProcIoMsv(IN void *pv)
     }
     pthread_exit(NULL);
 }
-
-// void *jProcIoMsvOut(void *pv)
-// {
-//     // 反馈信号
-//     bool OutSignle = 0;
-//     int RWeight_addr, i, RTav_addr;
-//     while (1)
-//     {
-//     }
-//     pthread_exit(NULL);
-// }
 
 int jProcWSysPara(void)
 {
@@ -1555,7 +1579,7 @@ int jProcWSysPara(void)
         sprintf(ac_temp, "Write", 5);
 
         // 打印-----------
-        LOG_INFO("jProcRWSysPara: %s m_STCommPara No %d, Enable%d!\n", ac_temp, i, j);
+        // LOG_INFO("jProcRWSysPara: %s m_STCommPara No %d, Enable%d!\n", ac_temp, i, j);
 
         // 打印-----------
     }
@@ -1598,7 +1622,7 @@ int jProcRWPara(void)
         sprintf(ac_temp, "read", 4);
     }
     // 打印-----------
-    LOG_INFO("jProcRWPara: %s,Para:%d,%d,%d,%d!\n", ac_temp, ReadCount, WTDelay, WTTime, TavValueRange);
+    // LOG_INFO("jProcRWPara: %s,Para:%d,%d,%d,%d!\n", ac_temp, ReadCount, WTDelay, WTTime, TavValueRange);
     return Return_Success;
     // 打印-----------
 }
@@ -1616,7 +1640,7 @@ int jProcWColumnSel(void)
     sprintf(ac_temp, "Write", 5);
 
     // 打印-----------
-    LOG_INFO("jProcWColumnSel:%s Column Sel:%d!\n", ac_temp, Column_SelectStatus);
+    // LOG_INFO("jProcWColumnSel:%s Column Sel:%d!\n", ac_temp, Column_SelectStatus);
     return Return_Success;
 
     // 打印-----------
@@ -1736,7 +1760,7 @@ int jReadFileInit(void)
     m_iModbusTcpID = ini["General Setting"]["MODBUS_TCP_ID"];
 
     // 打印-----------
-    LOG_INFO("jReadFile:ModbusTcpIp: Enable%d,TcpPort%d,TcpId%d!\n", m_iServerEnable, m_iModbusTcpPort, m_iModbusTcpID);
+    // LOG_INFO("jReadFile:ModbusTcpIp: Enable%d,TcpPort%d,TcpId%d!\n", m_iServerEnable, m_iModbusTcpPort, m_iModbusTcpID);
 
     // ad104 para
     fmd = ini["AD104 Para"]["FMD"];
@@ -1747,7 +1771,7 @@ int jReadFileInit(void)
     cof = ini["AD104 Para"]["COF"];
 
     // 打印-----------
-    LOG_INFO("jReadFile: Ad104:%d,%d,%d,%d,%d,%d!\n", fmd, asf, hsm, icr, nov, cof);
+    // LOG_INFO("jReadFile: Ad104:%d,%d,%d,%d,%d,%d!\n", fmd, asf, hsm, icr, nov, cof);
 
     // para
     ReadCount = ini["Para"]["ReadCount"];
@@ -1759,17 +1783,17 @@ int jReadFileInit(void)
     ModbusDataBuf[PlcRAdr_WTTime] = (ushort_t)WTDelay;
     ModbusDataBuf[PlcRAdr_TavValueRange] = (int)TavValueRange;
     // 打印-----------
-    LOG_INFO("jReadFile: Para:ReadCount(%d),WTTime(%d),WTDelay(%d),TavValueRange(%d)!\n", ReadCount, WTTime, WTDelay, TavValueRange);
+    // LOG_INFO("jReadFile: Para:ReadCount(%d),WTTime(%d),WTDelay(%d),TavValueRange(%d)!\n", ReadCount, WTTime, WTDelay, TavValueRange);
 
     Column_SelectStatus = ini["Column Sel"]["Column_SelectStatus"];
     ModbusDataBuf[PlcWAdr_RunColumnSel] = (ushort_t)Column_SelectStatus;
     // 打印-----------
-    LOG_INFO("jReadFile: Column Sel:Column_SelectStatus(%d)!\n", Column_SelectStatus);
+    // LOG_INFO("jReadFile: Column Sel:Column_SelectStatus(%d)!\n", Column_SelectStatus);
 
     // 打印-----------
     m_duration = ini["IO"]["IO_Duration"];
     IO_Start = ini["IO"]["IO_Start"];
-    LOG_INFO("jReadFile: IO_Duration:%d,IO_Start:%d!\n", m_duration, IO_Start);
+    // LOG_INFO("jReadFile: IO_Duration:%d,IO_Start:%d!\n", m_duration, IO_Start);
 
     // com para
     ModbusDataBuf[PlcWAdr_Com_Enable] = 0;
@@ -1787,7 +1811,7 @@ int jReadFileInit(void)
         m_STCommPara[i].iTimeInterVal = ini[&ac_temp[0]]["TimeInterval"];
         ModbusDataBuf[PlcWAdr_Com_Enable] += m_STCommPara[i].iEnable * (ushort_t)pow(2, i);
         // 打印-----------
-        LOG_INFO("jReadFile: SerialPort: %s,Port: %d,Enable: %d,Baud: %d,DataBits: %d,StopBits: %d,Parity: %d,TimeInterVal: %d!\n", m_STCommPara[i].tSerialPort, m_STCommPara[i].iPort, m_STCommPara[i].iEnable, m_STCommPara[i].iBaud, m_STCommPara[i].iDataBits, m_STCommPara[i].iStopBits, m_STCommPara[i].iParity, m_STCommPara[i].iTimeInterVal);
+        // LOG_INFO("jReadFile: SerialPort: %s,Port: %d,Enable: %d,Baud: %d,DataBits: %d,StopBits: %d,Parity: %d,TimeInterVal: %d!\n", m_STCommPara[i].tSerialPort, m_STCommPara[i].iPort, m_STCommPara[i].iEnable, m_STCommPara[i].iBaud, m_STCommPara[i].iDataBits, m_STCommPara[i].iStopBits, m_STCommPara[i].iParity, m_STCommPara[i].iTimeInterVal);
         // 打印-----------
     }
     return Return_Success;
@@ -1796,8 +1820,6 @@ int jReadFileInit(void)
 int jGPIoInit(void)
 {
     int ai_gpio[MaxIo_Nums] = {0};
-    // 初始化IO
-    write_do_control(0x00);
     /*gpio0 used to receive run signal from PLC 运行信号*/
     ai_gpio[0] = jGet_di_state(0x01);
     LOG_INFO("运行信号 DI-1:%d\n", ai_gpio[0]);
@@ -1821,7 +1843,7 @@ int jGPIoInit(void)
     LOG_INFO("复位信号 DI-4:%d\n", ai_gpio[6]);
     // /* gpio5 used to notify PLC  */
     ai_gpio[7] = jGet_do_state(0x08);
-    LOG_INFO(" DO-4:%d\n", ai_gpio[7]);
+    // LOG_INFO(" DO-4:%d\n", ai_gpio[7]);
     return 0;
 }
 
@@ -1864,11 +1886,11 @@ int jDiCheckPositive(IN int i_gpio, IN bool OverEnable, IN long OverTime)
     Time_DValue = OverTime;
     TimeEnable = OverEnable;
     Time1 = jGetTick();
-    LOG_INFO("jDiCheckPositive:i_gpionum num is %d!\n", i_gpionum);
+    // LOG_INFO("jDiCheckPositive:i_gpionum num is %d!\n", i_gpionum);
     if (Time_DValue < 2 * (long)m_duration)
         Time_DValue = 2 * (long)m_duration;
     Signal = jGet_di_state(i_gpionum);
-    LOG_INFO("jDiCheckPositive:Io num %d, signal %d!\n", i_gpionum, Signal);
+    // LOG_INFO("jDiCheckPositive:Io num %d, signal %d!\n", i_gpionum, Signal);
     if ((i_gpionum < 0) || (i_gpionum >= MaxIo_Nums))
     {
         LOG_ERROR("jDiCheckPositive : DiCheckPositive Num%d error! \n", i_gpionum);
@@ -1879,14 +1901,14 @@ int jDiCheckPositive(IN int i_gpio, IN bool OverEnable, IN long OverTime)
         if (Signal ^ jGet_di_state(i_gpionum))
         {
             jPselect(10);
-            LOG_INFO("jDiCheckPositive:Judge Io num %d,  signal %d,%d!\n", i_gpionum, Signal, ioctl(iGPIOFD, GPIO_IOCTL_GET, &i_gpionum));
+            // LOG_INFO("jDiCheckPositive:Judge Io num %d,  signal %d,%d!\n", i_gpionum, Signal, ioctl(iGPIOFD, GPIO_IOCTL_GET, &i_gpionum));
             if (jGet_di_state(i_gpionum) == 1)
             {
-                LOG_INFO("jDiCheckPositive:Judge signal is True!\n");
+                // LOG_INFO("jDiCheckPositive:Judge signal is True!\n");
                 jPselect(m_duration);
                 if (jGet_di_state(i_gpionum) == 1)
                 {
-                    LOG_INFO("jDiCheckPositive :Di Check%d is high!\n", i_gpionum);
+                    // LOG_INFO("jDiCheckPositive :Di Check%d is high!\n", i_gpionum);
                     return Return_HighLevel;
                 }
                 else
@@ -1897,7 +1919,7 @@ int jDiCheckPositive(IN int i_gpio, IN bool OverEnable, IN long OverTime)
             }
             else
             {
-                LOG_INFO("jDiCheckPositive :Di Check%d is low!\n", i_gpionum);
+                // LOG_INFO("jDiCheckPositive :Di Check%d is low!\n", i_gpionum);
                 return Return_Failed;
             }
         }
@@ -1908,7 +1930,7 @@ int jDiCheckPositive(IN int i_gpio, IN bool OverEnable, IN long OverTime)
                 Time2 = jGetTick();
                 if ((Time2 - Time1) > Time_DValue)
                 {
-                    LOG_INFO("jDiCheckPositive :Di Check%d is Overtime!\n", i_gpionum);
+                    // LOG_INFO("jDiCheckPositive :Di Check%d is Overtime!\n", i_gpionum);
                     return Return_Failed;
                 }
             }
@@ -1931,7 +1953,7 @@ int jDiCheckNegative(IN int i_gpio, IN bool OverEnable, IN long OverTime)
     if (Time_DValue < 2 * (long)m_duration)
         Time_DValue = 2 * (long)m_duration;
     Signal = ioctl(iGPIOFD, GPIO_IOCTL_GET, &i_gpionum);
-    LOG_INFO("jDiCheckNegative:Io num %d, signal %d!\n", i_gpionum, Signal);
+    // LOG_INFO("jDiCheckNegative:Io num %d, signal %d!\n", i_gpionum, Signal);
     if ((i_gpionum < 0) || (i_gpionum >= MaxIo_Nums))
     {
         LOG_ERROR("jDiCheckNegative : DiCheckNegative Num%d error! \n", i_gpionum);
@@ -1942,14 +1964,14 @@ int jDiCheckNegative(IN int i_gpio, IN bool OverEnable, IN long OverTime)
         if (Signal ^ jGet_di_state(i_gpionum))
         {
             jPselect(20);
-            LOG_INFO("jDiCheckNegative:Judge Io num %d,  signal %d,%d!\n", i_gpionum, Signal, ioctl(iGPIOFD, GPIO_IOCTL_GET, &i_gpionum));
+            // LOG_INFO("jDiCheckNegative:Judge Io num %d,  signal %d,%d!\n", i_gpionum, Signal, ioctl(iGPIOFD, GPIO_IOCTL_GET, &i_gpionum));
             if (jGet_di_state(i_gpionum) == 0)
             {
-                LOG_INFO("jDiCheckNegative:Judge signal is True!\n");
+                // LOG_INFO("jDiCheckNegative:Judge signal is True!\n");
                 jPselect(m_duration);
                 if (jGet_di_state(i_gpionum) == 0)
                 {
-                    LOG_INFO("jDiCheckNegative :Di Check%d is low!\n", i_gpionum);
+                    // LOG_INFO("jDiCheckNegative :Di Check%d is low!\n", i_gpionum);
                     return Return_LowLevel;
                 }
                 else
@@ -1960,7 +1982,7 @@ int jDiCheckNegative(IN int i_gpio, IN bool OverEnable, IN long OverTime)
             }
             else
             {
-                LOG_INFO("jDiCheckNegative :Di Check%d is High!\n", i_gpionum);
+                // LOG_INFO("jDiCheckNegative :Di Check%d is High!\n", i_gpionum);
                 return Return_Failed;
             }
         }
@@ -1971,7 +1993,7 @@ int jDiCheckNegative(IN int i_gpio, IN bool OverEnable, IN long OverTime)
                 Time2 = jGetTick();
                 if ((Time2 - Time1) > Time_DValue)
                 {
-                    LOG_INFO("jDiCheckNegative :Di Check%d is Overtime!\n", i_gpionum);
+                    // LOG_INFO("jDiCheckNegative :Di Check%d is Overtime!\n", i_gpionum);
                     return Return_Failed;
                 }
             }
@@ -1982,8 +2004,11 @@ int jDiCheckNegative(IN int i_gpio, IN bool OverEnable, IN long OverTime)
 
 void *jProcIoReadWrite(void *pv)
 {
+    // 初始化IO
     dio_init();
     jPselect(100);
+    write_do_control(0x00);
+    jPselect(20);
     unsigned char uc_do_temp;
     while (1)
     {

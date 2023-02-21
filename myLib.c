@@ -72,3 +72,22 @@ int loginput(char *logcontent)
 	close(loginput_fd);
 	return 0;
 }
+
+void hex_dump(const unsigned char *data, int data_len, int width)
+{
+    printf("-------------------\n");
+
+    for (int i = 0; i < data_len; i++)
+    {
+        printf("%02X ", (unsigned char)*(data + i));
+
+        if (((i + 1) % width) == 0)
+        {
+            printf("\n");
+        }
+    }
+
+    printf("\n");
+
+    printf("-------------------\n");
+}
